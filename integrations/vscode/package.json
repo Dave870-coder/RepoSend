@@ -1,0 +1,31 @@
+{
+  "name": "reposend-vscode",
+  "displayName": "RepoSend",
+  "description": "Publish selected workspace files with the RepoSend CLI.",
+  "version": "0.1.0",
+  "publisher": "reposend",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["SCM"],
+  "activationEvents": ["onCommand:reposend.publish"],
+  "main": "./extension.cjs",
+  "contributes": {
+    "commands": [
+      {
+        "command": "reposend.publish",
+        "title": "RepoSend: Publish Selected Files"
+      }
+    ],
+    "configuration": {
+      "title": "RepoSend",
+      "properties": {
+        "reposend.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to RepoSend's bin/reposend.mjs. If empty, the extension looks for bin/reposend.mjs in the current workspace."
+        }
+      }
+    }
+  }
+}

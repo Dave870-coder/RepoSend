@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; object-src 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https: http://localhost:8787 http://127.0.0.1:8787 ws://localhost:* ws://127.0.0.1:*"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#f5f7f4" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta
+      name="description"
+      content="Send selected files and folders straight to GitHub or GitLab repositories."
+    />
+    <title>RepoSend — ship code with less friction</title>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="./" aria-label="RepoSend home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <path d="M8 8.5h11.5a4.5 4.5 0 0 1 0 9H12a4 4 0 0 0 0 8h12" />
+              <path d="m19 5 4 3.5-4 3.5M21 22l4 3.5-4 3.5" />
+              <circle cx="8" cy="8.5" r="2" />
+              <circle cx="24" cy="25.5" r="2" />
+            </svg>
+          </span>
+          <span>repo<span class="brand-accent">send</span></span>
+        </a>
+        <span class="topbar-note"><span class="status-dot"></span> Private by design</span>
+      </header>
+
+      <main>
+        <section class="intro">
+          <div class="eyebrow"><span></span> REPOSITORY DELIVERY, SIMPLIFIED</div>
+          <h1>Your code, right where<br class="desktop-break" /> it needs to be.</h1>
+          <p>Pick a project, choose its destination, and send it straight to your repository. No zip files. No extra stops.</p>
+        </section>
+
+        <section id="publish-workspace" class="workspace" aria-label="Publish to GitHub">
+          <form id="publish-form" novalidate>
+            <div class="form-heading">
+              <div>
+                <span class="section-kicker">NEW DELIVERY</span>
+                <h2 id="provider-heading">Send to GitHub</h2>
+              </div>
+              <span class="github-badge" aria-label="GitHub">
+                <svg id="github-badge-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="currentColor" d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.56.1.76-.24.76-.54v-2.1c-3.1.67-3.76-1.32-3.76-1.32-.5-1.28-1.24-1.62-1.24-1.62-1.02-.7.08-.69.08-.69 1.12.08 1.71 1.15 1.71 1.15 1 .1.76 2.45 3.82 1.74.1-.72.4-1.22.68-1.5-2.48-.28-5.09-1.24-5.09-5.52 0-1.22.44-2.22 1.15-3-.12-.28-.5-1.42.11-2.96 0 0 .94-.3 3.05 1.14a10.6 10.6 0 0 1 5.55 0c2.11-1.43 3.05-1.14 3.05-1.14.6 1.54.23 2.68.11 2.96.72.78 1.15 1.78 1.15 3 0 4.29-2.61 5.23-5.1 5.51.4.34.73 1 .73 2.01v2.98c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9Z" />
+                </svg>
+                <span id="provider-badge-name">GitHub</span>
+              </span>
+            </div>
+
+            <div class="form-body">
+              <div class="field-group">
+                <label for="provider">Git provider</label>
+                <div class="input-with-icon">
+                  <span aria-hidden="true">⇄</span>
+                  <select id="provider" name="provider" aria-label="Git provider">
+                    <option value="github">GitHub</option>
+                    <option value="gitlab">GitLab.com</option>
+                    <option value="gitlab-self-managed">GitLab self-managed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div id="gitlab-instance-field" class="field-group" hidden>
+                <label for="gitlab-instance">GitLab instance URL</label>
+                <div class="input-with-icon">
+                  <span aria-hidden="true">↗</span>
+                  <input id="gitlab-instance" name="gitlab-instance" type="url" placeholder="https://gitlab.example.com" autocomplete="url" spellcheck="false" />
+                </div>
+                <span class="field-hint">Use the HTTPS origin of your self-managed GitLab instance.</span>
+              </div>
+
+              <div class="field-group">
+                <label id="token-label" for="token">GitHub personal access token</label>
+                <div class="token-row">
+                  <input id="token" name="token" type="password" placeholder="ghp_… or github_pat_…" autocomplete="off" spellcheck="false" required />
+                  <button class="text-button" id="toggle-token" type="button" aria-label="Show token" aria-pressed="false">Show</button>
+                </div>
+                <div class="field-hint">
+                  <span id="token-hint">Fine-grained: include this repository, with Contents read/write and Metadata read-only. Classic: repo scope.</span>
+                  <a id="create-token-link" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">Create a token <span aria-hidden="true">↗</span></a>
+                </div>
+              </div>
+
+              <div class="field-grid">
+                <div class="field-group">
+                  <label for="repository">Destination repository</label>
+                  <div class="input-with-icon">
+                    <span aria-hidden="true">⌘</span>
+                    <input id="repository" name="repository" type="text" placeholder="owner/repository or GitHub URL" autocomplete="off" spellcheck="false" required />
+                  </div>
+                  <span class="field-hint">Use a repository your account and token can access; organization policies still apply.</span>
+                  <button id="verify-access" class="inline-button" type="button">Verify token and repository access</button>
+                </div>
+                <div class="field-group">
+                  <label for="branch">Branch</label>
+                  <div class="input-with-icon branch-input">
+                    <span aria-hidden="true">⑂</span>
+                    <input id="branch" name="branch" type="text" value="main" autocomplete="off" spellcheck="false" required />
+                  </div>
+                  <span class="field-hint">New branches start from the default branch.</span>
+                </div>
+              </div>
+
+              <div class="field-group workflow-options">
+                <label class="option-label">
+                  <input id="create-repository" type="checkbox" />
+                  <span>Create the repository if it does not exist</span>
+                </label>
+                <label class="option-label">
+                  <input id="open-review" type="checkbox" />
+                  <span>Publish to a branch and open a pull/merge request</span>
+                </label>
+                <label class="option-label">
+                  <input id="save-recovery-copy" type="checkbox" />
+                  <span>Keep a local recovery copy for retrying interrupted publishes</span>
+                </label>
+                <span class="field-hint">Review requests compare the publish branch with the repository’s default branch.</span>
+                <span class="field-hint">Off by default. If enabled, selected file contents are kept only in this browser’s IndexedDB; tokens are never saved. Copies are removed after success or when you clear the selection.</span>
+              </div>
+
+              <div class="field-group proxy-field">
+                <label for="lfs-proxy-url">Git LFS Worker URL <span class="optional-label">OPTIONAL</span></label>
+                <div class="input-with-icon">
+                  <span aria-hidden="true">↗</span>
+                  <input id="lfs-proxy-url" name="lfs-proxy-url" type="url" placeholder="https://your-worker.workers.dev" autocomplete="url" spellcheck="false" />
+                </div>
+                <span class="field-hint">Required over 70 MiB; the default Worker limit is 90 MiB per file. Use the CLI with Git LFS for larger files.</span>
+              </div>
+
+              <div class="field-group source-group">
+                <div class="source-heading">
+                  <label>Your files</label>
+                  <span id="file-count" class="file-count">Nothing selected yet</span>
+                </div>
+                <div class="drop-area" id="drop-area">
+                  <div class="upload-icon" aria-hidden="true">
+                    <svg viewBox="0 0 32 32" fill="none">
+                      <path d="M16 21V5m0 0L9.5 11.5M16 5l6.5 6.5M6 20v5.5A2.5 2.5 0 0 0 8.5 28h15a2.5 2.5 0 0 0 2.5-2.5V20" />
+                    </svg>
+                  </div>
+                  <p class="drop-title">Drop files here, or <button id="choose-files" type="button" class="inline-button">browse files</button></p>
+                  <p id="file-limit-hint" class="drop-subtitle">Any file type, up to 250 MiB per send. Files over 70 MiB use your configured Git LFS Worker.</p>
+                  <div class="picker-actions">
+                    <button id="choose-folder" type="button" class="secondary-button">
+                      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h4l1.5 1.5H16A1.5 1.5 0 0 1 17.5 7v7A2 2 0 0 1 15.5 16h-11a2 2 0 0 1-2-2V5.5Z" /></svg>
+                      Choose a folder
+                    </button>
+                  </div>
+                  <input id="file-picker" type="file" multiple hidden />
+                  <input id="folder-picker" type="file" webkitdirectory multiple hidden />
+                </div>
+                <div id="selected-files" class="selected-files" aria-live="polite"></div>
+              </div>
+
+              <div class="privacy-note">
+                <span class="lock-icon" aria-hidden="true">◆</span>
+                <p id="privacy-copy"><strong>Your code stays yours.</strong> Regular files go directly to GitHub. Git LFS files and the token pass through your configured Worker; the supplied Worker does not intentionally store or log them.</p>
+              </div>
+              <p class="publish-note">Selected files are added or updated; other repository files are left untouched.</p>
+
+              <div class="task-queue">
+                <div class="queue-heading">
+                  <div>
+                    <strong>Publish queue</strong>
+                    <span>Queue up to five jobs; they run one at a time and are cleared when you leave this tab.</span>
+                  </div>
+                  <div class="queue-actions">
+                    <button id="queue-current" class="secondary-button" type="button">Queue this job</button>
+                    <button id="run-queue" class="secondary-button" type="button" disabled>Run queue (0)</button>
+                  </div>
+                </div>
+                <ol id="queued-jobs" class="queued-jobs" aria-live="polite"></ol>
+              </div>
+
+              <div class="submit-row">
+                <div id="status" class="status-message" role="status" aria-live="polite"></div>
+                <button id="publish-button" class="primary-button" type="submit">
+                  <span>Publish to GitHub</span>
+                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10h12m-5-5 5 5-5 5" /></svg>
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <aside class="workflow-aside">
+            <div class="aside-top">
+              <span class="aside-label">THE SHORT VERSION</span>
+              <h3>From your device<br />to your repo.</h3>
+              <p>A clean, direct path for the code you’re ready to share.</p>
+            </div>
+            <ol class="steps">
+              <li class="step-item">
+                <span class="step-number">01</span>
+                <div><strong>Choose your files</strong><span>Pick individual files or a whole folder.</span></div>
+              </li>
+              <li class="step-item">
+                <span class="step-number">02</span>
+                <div><strong>Set the destination</strong><span>Point to a repository and branch.</span></div>
+              </li>
+              <li class="step-item">
+                <span class="step-number">03</span>
+                <div><strong>Publish in one go</strong><span>Your selection becomes a single commit.</span></div>
+              </li>
+            </ol>
+            <div class="aside-foot">
+              <span class="aside-shield" aria-hidden="true">✓</span>
+              <span>Direct connection. No account needed here.</span>
+            </div>
+          </aside>
+        </section>
+
+        <section class="contributors" aria-labelledby="contributors-heading">
+          <div class="contributor-card">
+            <span class="section-kicker">CONTRIBUTOR</span>
+            <h2 id="contributors-heading">Onuoha Ikechukwu David</h2>
+            <p>Personal demo project · Proposed RepoSend web app interface.</p>
+            <a href="https://github.com/Dave870-coder/RepoSend" target="_blank" rel="noreferrer">View the RepoSend project ↗</a>
+          </div>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>RepoSend <span class="footer-dot">·</span> An easier way to get code there.</span>
+        <span>Open source, built for builders.</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

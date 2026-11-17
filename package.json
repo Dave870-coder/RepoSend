@@ -1,0 +1,31 @@
+{
+  "name": "reposend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "reposend": "./bin/reposend.mjs",
+    "reposend-mcp": "./integrations/mcp/server.mjs"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && tsc -p tsconfig.worker.json && vite build",
+    "test": "node --test bin/reposend.test.mjs integrations/mcp/server.test.mjs",
+    "preview": "vite preview",
+    "send": "node bin/reposend.mjs",
+    "mcp": "node integrations/mcp/server.mjs",
+    "worker:dev": "wrangler dev --config wrangler.toml",
+    "worker:deploy": "wrangler deploy --config wrangler.toml"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261116.1",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "wrangler": "^4.163.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@noble/hashes": "^1.8.0",
+    "zod": "^4.6.7"
+  }
+}

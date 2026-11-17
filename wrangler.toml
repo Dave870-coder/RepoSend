@@ -1,0 +1,8 @@
+name = "reposend-lfs-proxy"
+main = "worker/src/index.ts"
+compatibility_date = "2026-11-16"
+workers_dev = true
+
+[vars]
+ALLOWED_ORIGINS = "http://localhost:5173"
+MAX_UPLOAD_BYTES = "94371840"
