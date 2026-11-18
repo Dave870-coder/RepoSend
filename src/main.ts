@@ -1764,7 +1764,13 @@ async function getRefOrNull(path: string, token: string): Promise<{ object: { sh
     const ref = await githubRequest<unknown>(path, token);
     return { object: { sha: requireNestedSha(ref, 'object', 'branch reference') } };
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('Repository or branch not found')) return null;
+    if (
+      error instanceof Error
+      && (
+        error.message.startsWith('Repository or branch not found')
+        || error.message === 'Git Repository is empty.'
+      )
+    ) return null;
     throw error;
   }
 }
