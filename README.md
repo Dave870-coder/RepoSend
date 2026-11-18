@@ -81,7 +81,7 @@ The Pages workflow pins GitHub Actions to immutable commit SHAs and gives deploy
 
 GitHub's LFS endpoint blocks browser CORS requests, so files over 70 MiB go through the included Cloudflare Worker. The Pages app remains static; the Worker streams LFS objects to GitHub and does not intentionally store or log tokens or file contents. Cloudflare still processes the traffic, so deploy the Worker in an account you control.
 
-1. In `wrangler.toml`, change `ALLOWED_ORIGINS` to the exact Pages origin, such as `https://OWNER.github.io` (no repository path). Add `http://localhost:5173` too if you want to test the hosted Worker locally.
+1. `wrangler.toml` allows this project's Pages origin (`https://dave870-coder.github.io`) and `http://localhost:5173` for local testing. If you host a fork or custom domain, change `ALLOWED_ORIGINS` to the exact browser origin (no repository path).
 2. Set `PROXY_SIGNING_SECRET` as a Worker secret with `npx wrangler secret put PROXY_SIGNING_SECRET`. For local development, copy `.dev.vars.example` to `.dev.vars` and replace its placeholder with a random secret of at least 32 characters.
 3. Run `npm run worker:dev` to test locally, or `npm run worker:deploy` to deploy. Enter the resulting Worker URL in the app's **Git LFS Worker URL** field.
 

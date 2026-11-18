@@ -4,5 +4,5 @@ compatibility_date = "2026-11-16"
 workers_dev = true
 
 [vars]
-ALLOWED_ORIGINS = "http://localhost:5173"
+ALLOWED_ORIGINS = "https://dave870-coder.github.io,http://localhost:5173"
 MAX_UPLOAD_BYTES = "94371840"
