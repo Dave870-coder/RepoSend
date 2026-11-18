@@ -1,6 +1,6 @@
 # RepoSend
 
-RepoSend is a responsive, browser-based tool for publishing selected files or a folder as one commit to GitHub, GitLab.com, or a GitLab self-managed instance. Files go from your browser directly to the selected provider; RepoSend has no upload server and does not persist your token.
+RepoSend is a responsive, browser-based tool for publishing selected files or a folder as one commit to GitHub, GitLab.com, or a GitLab self-managed instance. It accepts any file type—including source code, images, video, audio, PDFs, documents, and archives—and preserves file bytes without converting or zipping them. Files go from your browser directly to the selected provider; RepoSend has no upload server and does not persist your token.
 
 ## Run locally
 
@@ -11,28 +11,26 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. Run `npm test` for CLI tests. To create a production build, run `npm run build`; `npm run preview` serves that build locally.
+Open the local URL printed by the RepoSend development server. Source changes rebuild the app and reload the page. Run `npm test` for CLI tests. To create a production build, run `npm run build`; `npm run preview` serves that build locally.
 
 ## Host on GitHub Pages
 
-The included Actions workflow builds and deploys the app when changes reach `main`. In the repository's **Settings → Pages**, choose **GitHub Actions** as the source. The Vite build uses relative asset URLs so it works both at a project URL (`owner.github.io/repository/`) and a user site/custom domain.
+The included Actions workflow builds and deploys the app when changes reach `main`. In the repository's **Settings → Pages**, choose **GitHub Actions** as the source. The build uses relative asset URLs so it works both at a project URL (`owner.github.io/repository/`) and a user site/custom domain.
 
 ## Publish
 
 1. Select **GitHub**, **GitLab.com**, or **GitLab self-managed**. For self-managed GitLab, enter the HTTPS instance origin. A GitHub fine-grained token must include the destination repository and grant **Contents: read and write** and **Metadata: read-only**; a classic token needs the `repo` scope. GitLab personal access tokens need the `api` scope.
 2. Enter `owner/repository` for GitHub or `namespace/project` for GitLab (subgroups are supported), or paste a provider HTTPS/SSH clone URL. For GitLab self-managed, the pasted URL must belong to the configured instance. Use **Verify token and repository access** to confirm access. A token can only access repositories its owner is authorized for and, for fine-grained tokens, repositories selected when the token was created; organization policies still apply. The token is sent directly to the selected provider and remains in browser memory only.
 3. Select files or a folder and enter a branch. A missing branch starts from the repository's default branch when it exists. Optionally create a missing private repository, or publish to a non-default branch and open a pull request/merge request. Creating a review request requires the provider's corresponding permissions.
-4. Publish one job immediately or add up to five independent jobs to the in-tab queue. The queue runs sequentially to avoid overlapping writes from this page; completed jobs retain their result links until the page is closed. Check live file/byte status and the commit/review link for each job. Selected files are added or updated; other repository files are not deleted.
+4. Publish one job immediately or add up to five jobs to the in-tab queue. The queue runs sequentially in this tab; completed jobs retain their result links until the page is closed. Check live file/byte status and the commit/review link for each job. Selected files are added or updated; other repository files are not deleted.
 
-The optional **local recovery copy** is off by default and stores selected file contents in this browser's IndexedDB only after you opt in. If the page is interrupted, the selection is restored so you can re-enter credentials and retry. Tokens are never included in the recovery copy. Completed GitHub blob uploads and Git LFS objects can be reused; an interrupted individual file restarts from that file's beginning (GitLab commits are submitted as one atomic API operation). Clear the selection or uncheck recovery to remove the saved copy; successful publishes remove it automatically. Browser storage quotas and eviction policies still apply.
-
-The token remains in browser memory and is cleared after a successful job, when switching providers, or when leaving the page; queued jobs hold their tokens in memory until processed or removed. RepoSend does not persist tokens. Regular Git API requests send them directly to the selected provider. GitHub LFS requests send them to the Worker URL you configure, which forwards them to GitHub. Use a Worker you control and review selected files for secrets before publishing.
+Tokens and selected files remain in page memory only while needed and are cleared when the page is closed; tokens are also cleared after success and when switching providers. RepoSend does not use browser storage, analytics, or a RepoSend-owned upload server. Regular Git API requests go directly to the selected provider. GitHub LFS requests go through the Worker URL you configure, which forwards them to GitHub. Use a Worker you control and review selected files for secrets before publishing.
 
 ## Scale and data handling
 
-GitHub Pages serves only the static HTML, CSS, and JavaScript. Each browser sends its GitHub API requests directly to GitHub with that user's token; RepoSend has no shared upload API, queue, account database, or server-side file store. This avoids a central RepoSend upload bottleneck, but it does not guarantee 7,500 concurrent users or successful publishes: GitHub rate/abuse limits apply per account/token, and GitHub Pages, the user's network, and any configured LFS Worker have their own service and plan limits. Do not share one personal token among users.
+GitHub Pages serves only the static HTML, CSS, and JavaScript. Each browser sends API requests directly to GitHub or GitLab with that user's token; RepoSend has no shared upload API, account database, or server-side file store. This avoids a central RepoSend upload bottleneck, but it cannot guarantee 3,750 simultaneous successful publishes. Provider rate/abuse limits can apply per account, token, IP, or endpoint; GitHub Pages and the user's network have their own limits, and the optional LFS Worker is subject to its Cloudflare plan. Do not share one personal token among users. Concurrent sends to the same repository should use distinct branches and review requests; simultaneous updates to one branch can conflict.
 
-No RepoSend-owned backend stores publish data. The optional recovery checkbox stores file copies only in that user's browser; leave it unchecked for no local recovery copy. GitHub stores files after a successful publish, and Cloudflare processes LFS traffic when the Worker is used.
+The app does not persist tokens, selected files, or publish history in browser storage or a RepoSend backend. The selected provider stores content after a successful publish; Cloudflare processes LFS traffic when the Worker is used.
 
 The browser UI supports files over 70 MiB through GitHub LFS and the configured Worker, whose default per-file limit is 90 MiB. Above the Worker's advertised limit, use the local CLI with Git LFS. Browser LFS transfers are not byte-range resumable; if a file transfer is interrupted, that file starts again from the beginning.
 

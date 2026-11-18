@@ -14,6 +14,7 @@
       name="description"
       content="Send selected files and folders straight to GitHub or GitLab repositories."
     />
+    <link rel="stylesheet" href="__APP_CSS__" />
     <title>RepoSend — ship code with less friction</title>
   </head>
   <body>
@@ -37,7 +38,7 @@
         <section class="intro">
           <div class="eyebrow"><span></span> REPOSITORY DELIVERY, SIMPLIFIED</div>
           <h1>Your code, right where<br class="desktop-break" /> it needs to be.</h1>
-          <p>Pick a project, choose its destination, and send it straight to your repository. No zip files. No extra stops.</p>
+          <p>Send source code, images, video, audio, PDFs, documents, archives, and more straight to GitHub or GitLab. Choose files or a folder—no zip step needed.</p>
         </section>
 
         <section id="publish-workspace" class="workspace" aria-label="Publish to GitHub">
@@ -118,12 +119,9 @@
                   <input id="open-review" type="checkbox" />
                   <span>Publish to a branch and open a pull/merge request</span>
                 </label>
-                <label class="option-label">
-                  <input id="save-recovery-copy" type="checkbox" />
-                  <span>Keep a local recovery copy for retrying interrupted publishes</span>
-                </label>
                 <span class="field-hint">Review requests compare the publish branch with the repository’s default branch.</span>
-                <span class="field-hint">Off by default. If enabled, selected file contents are kept only in this browser’s IndexedDB; tokens are never saved. Copies are removed after success or when you clear the selection.</span>
+                <span class="field-hint">For concurrent sends to one repository, use a unique branch per send and open a review request. Provider rate limits still apply.</span>
+                <span class="field-hint">RepoSend keeps files and tokens in memory only while this tab is open; it does not persist them.</span>
               </div>
 
               <div class="field-group proxy-field">
@@ -147,7 +145,7 @@
                     </svg>
                   </div>
                   <p class="drop-title">Drop files here, or <button id="choose-files" type="button" class="inline-button">browse files</button></p>
-                  <p id="file-limit-hint" class="drop-subtitle">Any file type, up to 250 MiB per send. Files over 70 MiB use your configured Git LFS Worker.</p>
+                  <p id="file-limit-hint" class="drop-subtitle">Any file type, up to 250 MiB total per send. Files over 70 MiB use your configured Git LFS Worker.</p>
                   <div class="picker-actions">
                     <button id="choose-folder" type="button" class="secondary-button">
                       <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h4l1.5 1.5H16A1.5 1.5 0 0 1 17.5 7v7A2 2 0 0 1 15.5 16h-11a2 2 0 0 1-2-2V5.5Z" /></svg>
@@ -162,7 +160,7 @@
 
               <div class="privacy-note">
                 <span class="lock-icon" aria-hidden="true">◆</span>
-                <p id="privacy-copy"><strong>Your code stays yours.</strong> Regular files go directly to GitHub. Git LFS files and the token pass through your configured Worker; the supplied Worker does not intentionally store or log them.</p>
+                <p id="privacy-copy"><strong>Your files stay yours.</strong> Regular files go directly to GitHub. Git LFS files and the token pass through your configured Worker; the supplied Worker does not intentionally store or log them.</p>
               </div>
               <p class="publish-note">Selected files are added or updated; other repository files are left untouched.</p>
 
@@ -232,6 +230,7 @@
         <span>Open source, built for builders.</span>
       </footer>
     </div>
-    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="__APP_JS__"></script>
+    <!-- DEV_RELOAD -->
   </body>
 </html>

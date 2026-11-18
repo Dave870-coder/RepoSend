@@ -8,10 +8,10 @@
     "reposend-mcp": "./integrations/mcp/server.mjs"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && tsc -p tsconfig.worker.json && vite build",
+    "dev": "node scripts/app.mjs dev",
+    "build": "tsc -b && tsc -p tsconfig.worker.json && node scripts/app.mjs build",
     "test": "node --test bin/reposend.test.mjs integrations/mcp/server.test.mjs",
-    "preview": "vite preview",
+    "preview": "node scripts/app.mjs preview",
     "send": "node bin/reposend.mjs",
     "mcp": "node integrations/mcp/server.mjs",
     "worker:dev": "wrangler dev --config wrangler.toml",
@@ -19,8 +19,8 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261116.1",
+    "esbuild": "^0.28.2",
     "typescript": "^5.8.3",
-    "vite": "^6.4.6",
     "wrangler": "^4.163.0"
   },
   "dependencies": {

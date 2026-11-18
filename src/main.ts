@@ -34,7 +34,6 @@ type QueuedPublish = {
   id: number;
   input: PublishInput;
   files: SelectedFile[];
-  saveRecoveryCopy: boolean;
 };
 type CompletedPublish = {
   id: number;
@@ -96,26 +95,8 @@ const fileLimitHint = document.querySelector<HTMLParagraphElement>('#file-limit-
 const privacyCopy = document.querySelector<HTMLParagraphElement>('#privacy-copy')!;
 const createRepositoryInput = document.querySelector<HTMLInputElement>('#create-repository')!;
 const openReviewInput = document.querySelector<HTMLInputElement>('#open-review')!;
-const saveRecoveryCopyInput = document.querySelector<HTMLInputElement>('#save-recovery-copy')!;
-const RECOVERY_DB_NAME = 'reposend-recovery';
-const RECOVERY_STORE_NAME = 'selections';
-const RECOVERY_KEY = 'pending-publish';
-
-type RecoveryRecord = {
-  id: string;
-  context: string;
-  files: Array<{
-    path: string;
-    name: string;
-    type: string;
-    lastModified: number;
-    content: Blob;
-    blobSha?: string;
-  }>;
-};
 
 let selectedFiles: SelectedFile[] = [];
-let recoveryRestored = false;
 let queuedPublishes: QueuedPublish[] = [];
 let completedPublishes: CompletedPublish[] = [];
 let nextQueuedPublishId = 1;
@@ -130,22 +111,7 @@ providerInput.addEventListener('change', () => {
 });
 gitLabInstanceInput.addEventListener('input', updateProviderUi);
 updateProviderUi();
-if (!window.indexedDB) {
-  saveRecoveryCopyInput.disabled = true;
-  saveRecoveryCopyInput.parentElement!.title = 'IndexedDB is unavailable in this browser.';
-} else {
-  void restoreRecoveryCopy().catch((error: unknown) => {
-    setStatus(error instanceof Error ? `Could not restore the local recovery copy: ${error.message}` : 'Could not restore the local recovery copy.', 'error');
-  });
-}
-saveRecoveryCopyInput.addEventListener('change', () => {
-  if (!saveRecoveryCopyInput.checked && window.indexedDB) {
-    recoveryRestored = false;
-    void clearRecoveryCopy().catch((error: unknown) => {
-      setStatus(error instanceof Error ? `Could not clear the local recovery copy: ${error.message}` : 'Could not clear the local recovery copy.', 'error');
-    });
-  }
-});
+removeLegacyRecoveryDatabase();
 
 document.querySelector<HTMLButtonElement>('#choose-files')!.addEventListener('click', () => filePicker.click());
 document.querySelector<HTMLButtonElement>('#choose-folder')!.addEventListener('click', () => folderPicker.click());
@@ -253,10 +219,11 @@ function updateProviderUi(): void {
   gitLabInstanceField.hidden = !selfManagedGitLab;
   lfsProxyField.hidden = !github;
   fileLimitHint.textContent = github
-    ? 'Up to 250 MiB total per send. Files over 70 MiB use your Worker (90 MiB default per file); use the CLI with Git LFS for larger files.'
-    : 'Any file type, up to 100 MiB per send. Larger GitLab files require the CLI and your Git LFS setup.';
+    ? 'Any file type, up to 250 MiB total per send. Files over 70 MiB use your Worker (90 MiB default per file); use the CLI with Git LFS for larger files.'
+    : 'Any file type, up to 100 MiB total per send. Larger GitLab files require the CLI and your Git LFS setup.';
 
   const privacyEmphasis = privacyCopy.querySelector('strong')!;
+  privacyEmphasis.textContent = 'Your files stay yours.';
   privacyCopy.replaceChildren(
     privacyEmphasis,
     document.createTextNode(github
@@ -303,12 +270,6 @@ function addFiles(files: File[]): void {
     path: normalizePath((file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name),
   }));
   selectedFiles = [...selectedFiles, ...additions];
-  recoveryRestored = false;
-  if (window.indexedDB) {
-    void clearRecoveryCopy().catch((error: unknown) => {
-      setStatus(error instanceof Error ? `Could not clear the outdated recovery copy: ${error.message}` : 'Could not clear the outdated recovery copy.', 'error');
-    });
-  }
   renderFiles();
   setStatus('', '');
 }
@@ -350,14 +311,8 @@ function renderFiles(): void {
   clearButton.disabled = publishBusy || queueRunning;
   clearButton.addEventListener('click', () => {
     selectedFiles = [];
-    recoveryRestored = false;
     renderFiles();
     setStatus('', '');
-    if (window.indexedDB) {
-      void clearRecoveryCopy().catch((error: unknown) => {
-        setStatus(error instanceof Error ? `Could not clear the local recovery copy: ${error.message}` : 'Could not clear the local recovery copy.', 'error');
-      });
-    }
   });
   summary.append(clearButton);
   selectedFilesElement.append(summary);
@@ -1069,191 +1024,24 @@ function createBlobRequestBody(encodedChunks: string[]): Blob {
   );
 }
 
-function openRecoveryDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    if (!window.indexedDB) {
-      reject(new Error('This browser does not support IndexedDB recovery copies.'));
-      return;
-    }
-    const request = window.indexedDB.open(RECOVERY_DB_NAME, 1);
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(RECOVERY_STORE_NAME)) {
-        request.result.createObjectStore(RECOVERY_STORE_NAME, { keyPath: 'id' });
-      }
+function removeLegacyRecoveryDatabase(): void {
+  if (!window.indexedDB) return;
+  try {
+    const request = window.indexedDB.deleteDatabase('reposend-recovery');
+    request.onerror = () => {
+      setStatus(
+        `Could not delete a previously saved local recovery copy: ${request.error?.message ?? 'unknown browser storage error'}`,
+        'error',
+      );
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error('IndexedDB could not be opened.'));
-    request.onblocked = () => reject(new Error('Another tab is blocking the recovery database upgrade.'));
-  });
-}
-
-function recoveryContext(input: PublishInput): string {
-  return `${input.provider}:${input.owner}/${input.repo}:${input.branch}`;
-}
-
-async function saveRecoveryCopy(input: PublishInput): Promise<void> {
-  const database = await openRecoveryDatabase();
-  try {
-    const previous = await new Promise<RecoveryRecord | undefined>((resolve, reject) => {
-      const transaction = database.transaction(RECOVERY_STORE_NAME, 'readonly');
-      const request = transaction.objectStore(RECOVERY_STORE_NAME).get(RECOVERY_KEY);
-      request.onsuccess = () => resolve(request.result as RecoveryRecord | undefined);
-      request.onerror = () => reject(request.error ?? new Error('The browser could not read the previous checkpoint.'));
-    });
-    const previousFiles = previous && Array.isArray(previous.files) ? previous.files : [];
-    const canReuse = recoveryRestored
-      && previous?.context === recoveryContext(input)
-      && previousFiles.length === selectedFiles.length
-      && previousFiles.every((item, index) => {
-        const selected = selectedFiles[index];
-        return item.path === selected.path
-          && item.name === selected.file.name
-          && item.type === selected.file.type
-          && item.lastModified === selected.file.lastModified
-          && item.content.size === selected.file.size;
-      });
-    const previousByPath = new Map(previousFiles.map((item) => [item.path, item.blobSha]));
-    await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction(RECOVERY_STORE_NAME, 'readwrite');
-      transaction.objectStore(RECOVERY_STORE_NAME).put({
-        id: RECOVERY_KEY,
-        context: recoveryContext(input),
-        files: selectedFiles.map(({ file, path }) => ({
-          path,
-          name: file.name,
-          type: file.type,
-          lastModified: file.lastModified,
-          content: file,
-          ...(canReuse && previousByPath.get(path) ? { blobSha: previousByPath.get(path) } : {}),
-        })),
-      } satisfies RecoveryRecord);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error ?? new Error('The browser could not save the selected files.'));
-      transaction.onabort = () => reject(transaction.error ?? new Error('The browser aborted saving the selected files.'));
-    });
-    recoveryRestored = true;
-  } finally {
-    database.close();
-  }
-}
-
-async function restoreRecoveryCopy(): Promise<void> {
-  const database = await openRecoveryDatabase();
-  let record: RecoveryRecord | undefined;
-  try {
-    record = await new Promise<RecoveryRecord | undefined>((resolve, reject) => {
-      const transaction = database.transaction(RECOVERY_STORE_NAME, 'readonly');
-      const request = transaction.objectStore(RECOVERY_STORE_NAME).get(RECOVERY_KEY);
-      request.onsuccess = () => resolve(request.result as RecoveryRecord | undefined);
-      request.onerror = () => reject(request.error ?? new Error('The browser could not read the recovery copy.'));
-    });
-  } finally {
-    database.close();
-  }
-  if (!record || !Array.isArray(record.files) || selectedFiles.length) return;
-  if (record.files.some((item) =>
-    !item
-    || typeof item.path !== 'string'
-    || typeof item.name !== 'string'
-    || typeof item.type !== 'string'
-    || typeof item.lastModified !== 'number'
-    || !(item.content instanceof Blob)
-    || (item.blobSha !== undefined && (typeof item.blobSha !== 'string' || !/^[a-f\d]{40}$/i.test(item.blobSha)))
-  )) {
-    throw new Error('The saved selection is invalid. Clear browser storage and choose the files again.');
-  }
-  selectedFiles = record.files.map((item) => ({
-    path: item.path,
-    file: new File([item.content], item.name, { type: item.type, lastModified: item.lastModified }),
-  }));
-  recoveryRestored = true;
-  saveRecoveryCopyInput.checked = true;
-  renderFiles();
-  setStatus('Restored the saved file selection. Re-enter your token and destination, then publish to retry.', 'info');
-}
-
-async function clearRecoveryCopy(): Promise<void> {
-  const database = await openRecoveryDatabase();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction(RECOVERY_STORE_NAME, 'readwrite');
-      transaction.objectStore(RECOVERY_STORE_NAME).delete(RECOVERY_KEY);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error ?? new Error('The browser could not remove the recovery copy.'));
-      transaction.onabort = () => reject(transaction.error ?? new Error('The browser aborted removing the recovery copy.'));
-    });
-  } finally {
-    database.close();
-  }
-}
-
-async function removeRecoveryCopy(): Promise<string> {
-  if (!window.indexedDB) return '';
-  try {
-    await clearRecoveryCopy();
-    return '';
+    request.onblocked = () => {
+      setStatus('Close other RepoSend tabs to delete a previously saved local recovery copy.', 'error');
+    };
   } catch (error) {
-    return `Published successfully, but the local recovery copy could not be removed: ${error instanceof Error ? error.message : 'unknown storage error'}`;
-  }
-}
-
-async function getBlobCheckpoint(item: SelectedFile, input: PublishInput): Promise<string | undefined> {
-  if (!saveRecoveryCopyInput.checked) return undefined;
-  const database = await openRecoveryDatabase();
-  try {
-    const record = await new Promise<RecoveryRecord | undefined>((resolve, reject) => {
-      const transaction = database.transaction(RECOVERY_STORE_NAME, 'readonly');
-      const request = transaction.objectStore(RECOVERY_STORE_NAME).get(RECOVERY_KEY);
-      request.onsuccess = () => resolve(request.result as RecoveryRecord | undefined);
-      request.onerror = () => reject(request.error ?? new Error('The browser could not read the file checkpoint.'));
-    });
-    const checkpoint = record?.files.find((file) =>
-      file.path === item.path
-      && file.name === item.file.name
-      && file.type === item.file.type
-      && file.lastModified === item.file.lastModified
-      && file.content.size === item.file.size
+    setStatus(
+      `Could not delete a previously saved local recovery copy: ${error instanceof Error ? error.message : 'unknown browser storage error'}`,
+      'error',
     );
-    if (checkpoint?.blobSha && !/^[a-f\d]{40}$/i.test(checkpoint.blobSha)) {
-      throw new Error(`The saved checkpoint for "${item.path}" is invalid.`);
-    }
-    return record?.context === recoveryContext(input) ? checkpoint?.blobSha : undefined;
-  } finally {
-    database.close();
-  }
-}
-
-async function saveBlobCheckpoint(item: SelectedFile, input: PublishInput, sha: string): Promise<void> {
-  if (!saveRecoveryCopyInput.checked) return;
-  const database = await openRecoveryDatabase();
-  try {
-    const record = await new Promise<RecoveryRecord | undefined>((resolve, reject) => {
-      const transaction = database.transaction(RECOVERY_STORE_NAME, 'readonly');
-      const request = transaction.objectStore(RECOVERY_STORE_NAME).get(RECOVERY_KEY);
-      request.onsuccess = () => resolve(request.result as RecoveryRecord | undefined);
-      request.onerror = () => reject(request.error ?? new Error('The browser could not read the file checkpoint.'));
-    });
-    if (!record || record.context !== recoveryContext(input)) {
-      throw new Error('The recovery checkpoint no longer matches this publish.');
-    }
-    const checkpoint = record.files.find((file) =>
-      file.path === item.path
-      && file.name === item.file.name
-      && file.type === item.file.type
-      && file.lastModified === item.file.lastModified
-      && file.content.size === item.file.size
-    );
-    if (!checkpoint) throw new Error(`Could not find a recovery checkpoint for "${item.path}".`);
-    checkpoint.blobSha = sha;
-    await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction(RECOVERY_STORE_NAME, 'readwrite');
-      transaction.objectStore(RECOVERY_STORE_NAME).put(record);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error ?? new Error('The browser could not save the completed file checkpoint.'));
-      transaction.onabort = () => reject(transaction.error ?? new Error('The browser aborted saving the completed file checkpoint.'));
-    });
-  } finally {
-    database.close();
   }
 }
 
@@ -1266,10 +1054,6 @@ async function publish(inputOverride?: PublishInput, filesOverride?: SelectedFil
   setStatus('Checking the repository and preparing your commit…', 'info');
 
   try {
-    if (saveRecoveryCopyInput.checked) {
-      setStatus('Saving a local recovery copy before publishing…', 'info');
-      await saveRecoveryCopy(input);
-    }
     if (isGitLabProvider(input.provider)) {
       await publishToGitLab(input);
       return true;
@@ -1350,7 +1134,6 @@ async function publish(inputOverride?: PublishInput, filesOverride?: SelectedFil
       lfsFiles.length ? regularFiles.filter((item) => item.path !== '.gitattributes') : regularFiles,
       repositoryPath,
       token,
-      input,
     );
     if (lfsFiles.length) {
       entries.push(...await uploadLargeFiles(
@@ -1412,12 +1195,10 @@ async function publish(inputOverride?: PublishInput, filesOverride?: SelectedFil
       }
     }
 
-    const recoveryWarning = await removeRecoveryCopy();
     tokenInput.value = '';
     setStatus(`Published ${selectedFiles.length} file${selectedFiles.length === 1 ? '' : 's'} to ${owner}/${repo} (${branch}).`, 'success');
     appendResultLink(commit.html_url, 'View commit ↗');
     if (reviewUrl) appendResultLink(reviewUrl, 'View pull request ↗');
-    if (recoveryWarning) statusElement.append(' ', document.createTextNode(recoveryWarning));
     return true;
   } catch (error) {
     setStatus(error instanceof Error ? error.message : 'Something went wrong while publishing. Please try again.', 'error');
@@ -1436,22 +1217,16 @@ async function queueCurrentPublish(): Promise<void> {
   const input = validateInput();
   if (!input) return;
   const files = [...selectedFiles];
-  const keepRecoveryCopy = saveRecoveryCopyInput.checked;
   queueAdding = true;
   setBusy(false);
   try {
-    if (keepRecoveryCopy && window.indexedDB) {
-      await clearRecoveryCopy();
-    }
     queuedPublishes.push({
       id: nextQueuedPublishId++,
       input,
       files,
-      saveRecoveryCopy: keepRecoveryCopy,
     });
     if (selectedFiles.length === files.length && selectedFiles.every((item, index) => item === files[index])) {
       selectedFiles = [];
-      recoveryRestored = false;
       renderFiles();
     }
     renderQueuedPublishes();
@@ -1524,7 +1299,6 @@ function loadQueuedPublish(job: QueuedPublish): void {
   lfsProxyInput.value = job.input.lfsProxyUrl;
   createRepositoryInput.checked = job.input.createRepository;
   openReviewInput.checked = job.input.openReview;
-  saveRecoveryCopyInput.checked = job.saveRecoveryCopy;
   selectedFiles = job.files;
   renderFiles();
 }
@@ -1682,7 +1456,6 @@ async function publishToGitLab(input: PublishInput): Promise<void> {
     }
   }
 
-  const recoveryWarning = await removeRecoveryCopy();
   tokenInput.value = '';
   setStatus(
     `Published ${selectedFiles.length} file${selectedFiles.length === 1 ? '' : 's'} to ${owner}/${repo} (${branch}).`,
@@ -1690,7 +1463,6 @@ async function publishToGitLab(input: PublishInput): Promise<void> {
   );
   appendResultLink(commitUrl.href, 'View commit ↗');
   if (reviewUrl) appendResultLink(reviewUrl, 'View merge request ↗');
-  if (recoveryWarning) statusElement.append(' ', document.createTextNode(recoveryWarning));
 }
 
 async function gitLabBranchExists(repositoryPath: string, branch: string, token: string): Promise<boolean> {
@@ -1797,7 +1569,6 @@ async function createBlobs(
   files: SelectedFile[],
   repositoryPath: string,
   token: string,
-  input: PublishInput,
 ): Promise<TreeEntry[]> {
   const entries: TreeEntry[] = [];
   let completed = 0;
@@ -1805,17 +1576,6 @@ async function createBlobs(
   const totalBytes = files.reduce((total, item) => total + item.file.size, 0);
 
   for (const [index, item] of files.entries()) {
-    const checkpointSha = await getBlobCheckpoint(item, input);
-    if (checkpointSha) {
-      entries.push({ path: item.path, mode: '100644', type: 'blob', sha: checkpointSha });
-      completed += 1;
-      completedBytes += item.file.size;
-      setStatus(
-        `Resumed ${completed} of ${files.length} files · ${formatBytes(completedBytes)} of ${formatBytes(totalBytes)}`,
-        'info',
-      );
-      continue;
-    }
     const encodedChunks = await toBase64Chunks(item.file, (processedBytes) => {
       setStatus(
         `Preparing file ${index + 1} of ${files.length} · ${formatBytes(processedBytes)} of ${formatBytes(item.file.size)}: ${item.path}`,
@@ -1831,7 +1591,6 @@ async function createBlobs(
       body: createBlobRequestBody(encodedChunks),
     });
     const sha = requireSha(blob, 'blob');
-    await saveBlobCheckpoint(item, input, sha);
     entries.push({ path: item.path, mode: '100644', type: 'blob', sha });
     completed += 1;
     completedBytes += item.file.size;
@@ -2019,7 +1778,6 @@ function setBusy(isBusy: boolean): void {
   lfsProxyInput.disabled = controlsBusy;
   createRepositoryInput.disabled = controlsBusy;
   openReviewInput.disabled = controlsBusy;
-  saveRecoveryCopyInput.disabled = controlsBusy || !window.indexedDB;
   filePicker.disabled = controlsBusy;
   folderPicker.disabled = controlsBusy;
   queueCurrentButton.disabled = controlsBusy || queuedPublishes.length >= MAX_QUEUED_PUBLISHES;
